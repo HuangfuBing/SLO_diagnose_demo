@@ -228,68 +228,27 @@ def _make_sample_spm_runner():
 
 
 def _make_sample_vlm_runner():
-    """
-    Swift infer best-practice style runner with room for custom register/template.
-    Configure via envs (required paths must be provided):
-        VLM_MODEL_PATH              (required, base model)
-        VLM_ADAPTERS                (required, fine-tuned LoRA/adapter path)
-        VLM_CUSTOM_REGISTER_PATH    (optional, e.g., your my_register.py)
-        VLM_MODEL_TYPE              (default: qwen3_vl)
-        VLM_TEMPLATE                (default: same as VLM_MODEL_TYPE)
-        VLM_INFER_BACKEND           (default: pt)
-        VLM_DEVICE_MAP              (default: auto)
-        VLM_DTYPE                   (default: bfloat16)
-        VLM_MAX_NEW_TOKENS          (default: 4096)
-        VLM_TEMPERATURE             (default: 0.2)
-    """
-
     _vlm_state = {"model": None}
 
-    def _load_vlm_model():
-        try:
-            from swift.llm import SwiftModel  # type: ignore
-        except ImportError as exc:
-            raise RuntimeError("swift is required for VLM sample runner (pip install swift)") from exc
-
-        model_path = os.getenv("VLM_MODEL_PATH")
-        adapters = os.getenv("VLM_ADAPTERS")
-        if not model_path or not adapters:
-            raise RuntimeError(
-                "[USE_SAMPLE_RUNNERS] VLM_MODEL_PATH and VLM_ADAPTERS are required for VLM runner."
-            )
-
-        custom_register_path = os.getenv("VLM_CUSTOM_REGISTER_PATH", "").strip() or None
-        model_type = os.getenv("VLM_MODEL_TYPE", "qwen3_vl")
-        template = os.getenv("VLM_TEMPLATE", model_type)
-        infer_backend = os.getenv("VLM_INFER_BACKEND", "pt")
-        device_map = os.getenv("VLM_DEVICE_MAP", "auto")
-        dtype = os.getenv("VLM_DTYPE", "bfloat16")
-
-        # Keep optional envs aligned with the shell snippet (image token limits).
-        os.environ.setdefault("IMAGE_MAX_TOKEN_NUM", "1024")
-        os.environ.setdefault("MAX_PIXELS", "1048576")
+    def get_model():
+        from swift.llm import SwiftModel  # adjust to your stack
 
         return SwiftModel.from_pretrained(
-            model=model_path,
-            adapters=adapters,
-            custom_register_path=custom_register_path,
-            model_type=model_type,
-            template=template,
-            infer_backend=infer_backend,
-            device_map=device_map,
-            torch_dtype=dtype,
+            "qwen3-vl-72b",  # replace with your model or local path
+            device="cuda:0",
+            dtype="bfloat16",
         )
 
     def runner(prompt, image_paths, spm_feat_path=None):
         if _vlm_state["model"] is None:
-            _vlm_state["model"] = _load_vlm_model()
+            _vlm_state["model"] = get_model()
 
         resp = _vlm_state["model"].generate(
             prompt=prompt,
             images=list(image_paths),
-            max_new_tokens=int(os.getenv("VLM_MAX_NEW_TOKENS", "4096")),
-            temperature=float(os.getenv("VLM_TEMPERATURE", "0.2")),
-            # extra_kwargs={"spm_feat_path": spm_feat_path},  # if your custom register supports it
+            max_new_tokens=512,
+            temperature=0.2,
+            # extra_kwargs={"spm_feat_path": spm_feat_path},  # if your model supports it
         )
 
         return VlmResult(
