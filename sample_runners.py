@@ -9,7 +9,6 @@ USE_SAMPLE_RUNNERS=1.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Tuple
 
 from PIL import Image
