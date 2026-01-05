@@ -100,8 +100,18 @@ def log_feedback(
 # --------------------------------------------------------------------------- #
 # Gradio logic
 # --------------------------------------------------------------------------- #
-spm_client = make_default_spm_client()
-vlm_client = make_default_vlm_client()
+# [MOD-c-sample] Sample runner wiring for real SPM + VLM (Swift/Qwen3).
+# Enable by setting USE_SAMPLE_RUNNERS=1 when launching the app; otherwise the
+# default clients remain mock-friendly.
+USE_SAMPLE_RUNNERS = os.getenv("USE_SAMPLE_RUNNERS", "0") == "1"
+
+if USE_SAMPLE_RUNNERS:
+    from sample_runners import build_sample_clients
+
+    spm_client, vlm_client = build_sample_clients()
+else:
+    spm_client = make_default_spm_client()
+    vlm_client = make_default_vlm_client()
 
 
 def diagnose(
