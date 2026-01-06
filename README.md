@@ -75,26 +75,6 @@ VLM_DTYPE=bfloat16 \
 python app.py --runner-mode real
 ```
 
-### 病种名称映射（labelmap）
-
-为保证 VLM 提示词使用中文疾病名，同时在 UI 中展示中文名与 key：
-
-- 设置 `LABELMAP_PATH` 指向 `labelmap.json`（默认读取项目根目录 `labelmap.json`）。
-- 支持的文件结构示例：
-  ```json
-  [
-    {"id": 0, "key": "AMD", "zh": "年龄相关性黄斑变性"},
-    {"id": 1, "key": "RVO", "zh": "视网膜静脉阻塞"}
-  ]
-  ```
-  或
-  ```json
-  {
-    "0": {"key": "AMD", "zh": "年龄相关性黄斑变性"}
-  }
-  ```
-- VLM 提示词将使用 `zh`；UI 返回的疾病概率会同时包含 `zh`、`key`，若两者都有会生成 `label`（如 `年龄相关性黄斑变性 (AMD)`）。
-
 ### Sample Runner
 
 保留 `USE_SAMPLE_RUNNERS=1` 兼容路径，内部依赖 `sample_runners.py`。适合在有同款依赖的机器上快速验证。

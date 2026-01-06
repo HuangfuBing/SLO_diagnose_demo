@@ -1,0 +1,426 @@
+{
+    "version": "1.0",
+    "comment": "Canonical label map for SLO multi-label diagnosis. Use `key` as stable ID, `zh` for display, `aliases` for matching.",
+    "match_options": {
+      "case_insensitive": true,
+      "normalize_fullwidth": true,
+      "strip_spaces": true,
+      "strip_punct": false
+    },
+    "labels": [
+      {
+        "id": 0,
+        "key": "AMD",
+        "zh": "年龄相关性黄斑变性",
+        "aliases": [
+          "AMD",
+          "ARMD",
+          "Age-related Macular Degeneration",
+          "老年性黄斑变性",
+          "老黄",
+          "老年黄斑变性"
+        ],
+        "regex": null
+      },
+      {
+        "id": 1,
+        "key": "COATS",
+        "zh": "外层渗出性视网膜病变",
+        "aliases": [
+          "Coats",
+          "COATS",
+          "Coats病",
+          "Coats Disease",
+          "Coats' Disease",
+          "视网膜毛细血管扩张症",
+          "外层渗出性视网膜病变"
+        ],
+        "regex": null
+      },
+      {
+        "id": 2,
+        "key": "DR",
+        "zh": "糖尿病视网膜病变",
+        "aliases": [
+          "DR",
+          "Diabetic Retinopathy",
+          "NPDR",
+          "Non-Proliferative Diabetic Retinopathy",
+          "糖网",
+          "单纯性糖网",
+          "背景型糖网",
+          "非增殖期糖尿病视网膜病变",
+          "糖尿病视网膜病变"
+        ],
+        "regex": null
+      },
+      {
+        "id": 3,
+        "key": "FEVR",
+        "zh": "家族性渗出性玻璃体视网膜病变",
+        "aliases": [
+          "FEVR",
+          "Familial Exudative Vitreoretinopathy",
+          "家族性渗出性玻璃体视网膜病变",
+          "家族性渗出性视网膜病变"
+        ],
+        "regex": null
+      },
+      {
+        "id": 4,
+        "key": "PDR",
+        "zh": "增殖性糖尿病视网膜病变",
+        "aliases": [
+          "PDR",
+          "Proliferative Diabetic Retinopathy",
+          "增殖性糖尿病视网膜病变",
+          "增殖期糖尿病视网膜病变",
+          "增殖期糖网"
+        ],
+        "regex": null
+      },
+      {
+        "id": 5,
+        "key": "PM",
+        "zh": "病理性近视",
+        "aliases": [
+          "PM",
+          "Pathologic Myopia",
+          "Pathological Myopia",
+          "High Myopia",
+          "病理性近视",
+          "高度近视",
+          "高度近视性改变",
+          "高度近视眼底改变",
+          "豹纹状眼底"
+        ],
+        "regex": null
+      },
+      {
+        "id": 6,
+        "key": "RD",
+        "zh": "视网膜脱离",
+        "aliases": [
+          "RD",
+          "Retinal Detachment",
+          "Rhegmatogenous Retinal Detachment",
+          "RRD",
+          "视网膜脱离",
+          "网脱",
+          "视网膜脱落"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 7,
+        "key": "RP",
+        "zh": "视网膜色素变性",
+        "aliases": [
+          "RP",
+          "Retinitis Pigmentosa",
+          "视网膜色素变性",
+          "原发性视网膜色素变性",
+          "夜盲症"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 8,
+        "key": "RVO",
+        "zh": "视网膜静脉阻塞",
+        "aliases": [
+          "RVO",
+          "Retinal Vein Occlusion",
+          "BRVO",
+          "CRVO",
+          "Branch Retinal Vein Occlusion",
+          "Central Retinal Vein Occlusion",
+          "视网膜静脉阻塞",
+          "视网膜分支静脉阻塞",
+          "视网膜中央静脉阻塞",
+          "静脉阻塞"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 9,
+        "key": "VKH",
+        "zh": "伏格特-小柳-原田综合征",
+        "aliases": [
+          "VKH",
+          "Vogt-Koyanagi-Harada Syndrome",
+          "Vogt-Koyanagi-Harada",
+          "伏格特-小柳-原田综合征",
+          "小柳-原田综合征",
+          "原田病"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 10,
+        "key": "动脉瘤",
+        "zh": "动脉瘤",
+        "aliases": [
+          "Retinal Arterial Macroaneurysm",
+          "RAM",
+          "视网膜动脉瘤",
+          "视网膜大动脉瘤",
+          "动脉瘤"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 11,
+        "key": "有髓神经纤维",
+        "zh": "有髓神经纤维",
+        "aliases": [
+          "Myelinated Nerve Fibers",
+          "MNF",
+          "Retinal Myelinated Nerve Fibers",
+          "有髓神经纤维",
+          "视网膜有髓神经纤维",
+          "髓鞘化神经纤维"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 12,
+        "key": "正常",
+        "zh": "正常",
+        "aliases": [
+          "Normal",
+          "Normal Fundus",
+          "No Apparent Abnormality",
+          "正常",
+          "未见明显异常",
+          "眼底未见明显异常",
+          "正常眼底"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 13,
+        "key": "激光光斑",
+        "zh": "激光光斑",
+        "aliases": [
+          "Laser Spots",
+          "Laser Scars",
+          "Photocoagulation Scars",
+          "PRP Scars",
+          "Panretinal Photocoagulation",
+          "激光光斑",
+          "光凝斑",
+          "激光斑",
+          "视网膜光凝术后"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 14,
+        "key": "玻璃体混浊",
+        "zh": "玻璃体混浊",
+        "aliases": [
+          "Vitreous Opacities",
+          "Vitreous Floaters",
+          "Floaters",
+          "玻璃体混浊",
+          "飞蚊症",
+          "玻璃体液化"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 15,
+        "key": "玻璃体积血",
+        "zh": "玻璃体积血",
+        "aliases": [
+          "Vitreous Hemorrhage",
+          "VH",
+          "玻璃体积血",
+          "玻血",
+          "玻璃体出血"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 16,
+        "key": "玻璃膜疣",
+        "zh": "玻璃膜疣",
+        "aliases": [
+          "Drusen",
+          "Hard Drusen",
+          "Soft Drusen",
+          "玻璃膜疣",
+          "视网膜玻璃膜疣"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 17,
+        "key": "白内障",
+        "zh": "白内障",
+        "aliases": [
+          "Cataract",
+          "Age-related Cataract",
+          "ARC",
+          "白内障",
+          "晶状体混浊"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 18,
+        "key": "眼底肿瘤",
+        "zh": "眼底肿瘤",
+        "aliases": [
+          "Intraocular Tumor",
+          "Fundus Tumor",
+          "Choroidal Melanoma",
+          "Retinoblastoma",
+          "眼底肿瘤",
+          "脉络膜黑色素瘤",
+          "视网膜母细胞瘤"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 19,
+        "key": "脉络膜疾病",
+        "zh": "脉络膜疾病",
+        "aliases": [
+          "Choroidal Disease",
+          "Choroidopathy",
+          "Pachychoroid",
+          "脉络膜疾病",
+          "厚脉络膜疾病"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 20,
+        "key": "脉络膜视网膜炎",
+        "zh": "脉络膜视网膜炎",
+        "aliases": [
+          "Chorioretinitis",
+          "Neuroretinitis",
+          "脉络膜视网膜炎",
+          "脉络膜视网膜病变"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 21,
+        "key": "血管炎",
+        "zh": "血管炎",
+        "aliases": [
+          "Retinal Vasculitis",
+          "Vasculitis",
+          "Periphlebitis",
+          "血管炎",
+          "视网膜血管炎",
+          "血管鞘",
+          "白鞘"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 22,
+        "key": "视盘异常",
+        "zh": "视盘异常",
+        "aliases": [
+          "Optic Disc Abnormality",
+          "Optic Disc Anomaly",
+          "Optic Atrophy",
+          "Papilledema",
+          "Glaucomatous Optic Neuropathy",
+          "视盘异常",
+          "视神经萎缩",
+          "视盘水肿",
+          "视盘苍白",
+          "杯盘比扩大"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 23,
+        "key": "视网膜前膜",
+        "zh": "视网膜前膜",
+        "aliases": [
+          "Epiretinal Membrane",
+          "ERM",
+          "Macular Pucker",
+          "Cellophane Maculopathy",
+          "视网膜前膜",
+          "黄斑前膜"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 24,
+        "key": "视网膜变性",
+        "zh": "视网膜变性",
+        "aliases": [
+          "Retinal Degeneration",
+          "Lattice Degeneration",
+          "Pavingstone Degeneration",
+          "视网膜变性",
+          "格子样变性",
+          "铺路石样变性",
+          "视网膜周边变性"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 25,
+        "key": "视网膜裂孔",
+        "zh": "视网膜裂孔",
+        "aliases": [
+          "Retinal Tear",
+          "Retinal Hole",
+          "Retinal Break",
+          "Macular Hole",
+          "视网膜裂孔",
+          "视网膜裂口",
+          "黄斑裂孔",
+          "马蹄形裂孔"
+        ],
+        "regex": null,
+        "notes": ""
+      },
+      {
+        "id": 26,
+        "key": "黄斑病变",
+        "zh": "黄斑病变",
+        "aliases": [
+          "Maculopathy",
+          "Macular Disease",
+          "CSR",
+          "Central Serous Chorioretinopathy",
+          "黄斑病变",
+          "中浆",
+          "中心性浆液性脉络膜视网膜病变"
+        ],
+        "regex": null,
+        "notes": ""
+      }
+    ]
+  }
