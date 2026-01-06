@@ -5,7 +5,7 @@ can import without immediately loading large model weights. The actual loading
 is performed lazily inside each service module.
 """
 
-from .spm_api import SpmClient, SpmResult  # noqa: F401
-from .vlm_api import VlmClient, VlmResult  # noqa: F401
+from .spm_api import SpmClient, SpmResult, make_default_spm_client  # noqa: F401
+from .vlm_api import VlmClient, VlmResult, make_default_vlm_client  # noqa: F401
 from .spm_runner_impl import build_spm_runner  # noqa: F401
 from .vlm_runner_impl import build_vlm_runner  # noqa: F401
