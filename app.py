@@ -205,19 +205,7 @@ def diagnose(
 
     image_paths = _ensure_image_paths(images)
 
-    global spm_client, vlm_client
-
-    try:
-        spm_res = spm_client(image_paths)
-    except Exception as exc:
-        if os.getenv("MOCK_SPM") != "1":
-            print(f"[runner] SPM 失败（{exc}），切换到 mock。")
-            os.environ.setdefault("MOCK_SPM", "1")
-            os.environ.setdefault("MOCK_VLM", "1")
-            spm_client, vlm_client = create_clients("mock")
-            spm_res = spm_client(image_paths)
-        else:
-            raise
+    spm_res = spm_client(image_paths)
     label_map = load_labelmap(LABELMAP_PATH)
     enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
 
@@ -226,17 +214,7 @@ def diagnose(
         spm_res.thresholds,
         label_map=label_map,
     )
-    try:
-        vlm_res = vlm_client(prompt, image_paths, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
-    except Exception as exc:
-        if os.getenv("MOCK_VLM") != "1":
-            print(f"[runner] VLM 失败（{exc}），切换到 mock。")
-            os.environ.setdefault("MOCK_SPM", "1")
-            os.environ.setdefault("MOCK_VLM", "1")
-            spm_client, vlm_client = create_clients("mock")
-            vlm_res = vlm_client(prompt, image_paths, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
-        else:
-            raise
+    vlm_res = vlm_client(prompt, image_paths, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
 
     session_id = uuid.uuid4().hex
     feedback_path = log_feedback(session_id, spm_res, vlm_res, feedback_score, feedback_text)
@@ -263,14 +241,14 @@ def build_demo():
 
         with gr.Row(equal_height=True):
             with gr.Column():
-                gr.Markdown("### 上传与选项")
                 images = gr.File(
                     label="影像上传",
                     file_count="multiple",
                     file_types=["image"],
                     type="filepath",
                 )
-                use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True, info="勾选后将上游特征馈入 VLM")
+                use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True)
+                user_note = gr.Textbox(label="补充信息（可选）", lines=3, placeholder="患者症状、病史等")
                 feedback_score = gr.Slider(label="医生评分 (1-5)", minimum=1, maximum=5, step=1, value=4)
                 feedback_text = gr.Textbox(label="医生文字反馈（可选）", lines=3)
                 run_btn = gr.Button("生成报告", variant="primary", size="lg")
