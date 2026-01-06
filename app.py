@@ -204,7 +204,7 @@ def diagnose(
 
 
 def build_demo():
-    with gr.Blocks(title="SLO 医学影像诊断 Demo", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="SLO 医学影像诊断 Demo") as demo:
         gr.Markdown(
             """
             # SPM + VLM 联动 Demo
@@ -215,7 +215,12 @@ def build_demo():
 
         with gr.Row():
             with gr.Column():
-                images = gr.Image(label="影像上传", type="filepath", sources=["upload", "clipboard"], multiple=True)
+                images = gr.File(
+                    label="影像上传",
+                    file_count="multiple",
+                    file_types=["image"],
+                    type="filepath",
+                )
                 use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True)
                 user_note = gr.Textbox(label="补充信息（可选）", lines=3, placeholder="患者症状、病史等")
                 feedback_score = gr.Slider(label="医生评分 (1-5)", minimum=1, maximum=5, step=1, value=4)
@@ -257,7 +262,12 @@ def main():
     spm_client, vlm_client = create_clients(args.runner_mode)
 
     demo = build_demo()
-    demo.launch(server_name=args.host, server_port=args.port, share=args.share)
+    demo.launch(
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
+        theme=gr.themes.Soft(),
+    )
 
 
 if __name__ == "__main__":
