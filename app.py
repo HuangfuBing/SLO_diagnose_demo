@@ -39,6 +39,7 @@ from services import (
 # --------------------------------------------------------------------------- #
 FEEDBACK_DIR = Path("feedback")
 FEEDBACK_DIR.mkdir(exist_ok=True)
+LABELMAP_PATH = Path(os.getenv("LABELMAP_PATH", "labelmap.json"))
 
 
 # [MOD-c] Prompt builder aligned with the training template used in generate_vlm3.py.
@@ -46,6 +47,7 @@ def build_prompt(
     disease_probs: List[Dict],
     thresholds: Dict,
     user_note: Optional[str] = None,
+    label_map=None,
 ) -> str:
     """
     Construct the human prompt text exactly following the fine-tuning template
@@ -54,9 +56,11 @@ def build_prompt(
     # Convert disease entries to the expected structure for the JSON snippet.
     findings_for_prompt = []
     for item in disease_probs:
+        label = resolve_disease_label(item.get("id"), label_map or {})
+        disease_name = label.get("zh") or item.get("zh") or item.get("key") or item.get("id", "unknown")
         findings_for_prompt.append(
             {
-                "疾病名称": item.get("id", "unknown"),
+                "疾病名称": disease_name,
                 "prob": item.get("prob"),
                 "threshold": item.get("threshold", thresholds.get("default")),
             }
@@ -175,14 +179,22 @@ def diagnose(
         raise gr.Error("请先上传至少一张影像。")
 
     spm_res = spm_client(images)
-    prompt = build_prompt(spm_res.disease_probs, spm_res.thresholds, user_note=user_note)
+    label_map = load_labelmap(LABELMAP_PATH)
+    enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
+
+    prompt = build_prompt(
+        enriched_disease_probs,
+        spm_res.thresholds,
+        user_note=user_note,
+        label_map=label_map,
+    )
     vlm_res = vlm_client(prompt, images, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
 
     session_id = uuid.uuid4().hex
     feedback_path = log_feedback(session_id, spm_res, vlm_res, feedback_score, feedback_text)
 
     return (
-        spm_res.disease_probs,
+        enriched_disease_probs,
         spm_res.lesion_probs,
         spm_res.thresholds,
         vlm_res.report,
