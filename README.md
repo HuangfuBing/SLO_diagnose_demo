@@ -8,6 +8,15 @@ Gradio 前端可通过多种 runner 组合使用（真实权重 / sample / mock�
 MOCK_SPM=1 MOCK_VLM=1 python app.py
 ```
 
+### 目录结构与占位
+
+- `services/`：SPM & VLM runner 逻辑。
+- `configs/`：预留配置文件位置（以 `README.md` 作为 dummy 占位，实际使用时替换为 yaml/json）。
+- `weights/`：预留 SPM/VLM 权重与先验矩阵存放位置（dummy 占位，运行时用环境变量指向）。
+- `data/`：预留示例或回归数据位置（dummy 占位，谨慎处理敏感数据）。
+- `feedback/`：Gradio 运行时写入的诊断与反馈 JSONL，已添加占位 README 以便目录被跟踪。
+- 其余训练/生成脚本保持在仓库根目录，后续需要可迁移到 `scripts/` 等子目录并更新结构文档。
+
 ### 选择 Runner 来源
 
 - 环境变量：`RUNNER_MODE`（可选 `auto` / `real` / `sample` / `mock`，默认 `auto`）。
