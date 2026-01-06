@@ -46,7 +46,6 @@ LABELMAP_PATH = Path(os.getenv("LABELMAP_PATH", "labelmap.json"))
 def build_prompt(
     disease_probs: List[Dict],
     thresholds: Dict,
-    user_note: Optional[str] = None,
     label_map=None,
 ) -> str:
     """
@@ -83,10 +82,30 @@ def build_prompt(
         f"{json.dumps(findings_for_prompt, ensure_ascii=False, indent=2)}\n"
     )
 
-    if user_note:
-        human_prompt_text += f"\n医生补充信息：\n{user_note}\n"
-
     return human_prompt_text
+
+
+def _ensure_image_paths(images) -> List[str]:
+    """
+    Normalize Gradio File/Image component outputs to a list of file paths.
+
+    Gradio 6 `gr.File` with file_count="multiple" can return a list of strings
+    or a list of dicts containing a `path` key. This helper keeps the service
+    layer agnostic to UI return shapes and ensures mock mode works without
+    raising type errors.
+    """
+
+    paths: List[str] = []
+    # Gradio may hand us a single string or a list; normalize to list for downstream.
+    seq = images if isinstance(images, (list, tuple)) else [images] if images else []
+    for item in seq:
+        if isinstance(item, str):
+            paths.append(item)
+        elif isinstance(item, dict) and item.get("path"):
+            paths.append(item["path"])
+        else:
+            raise gr.Error(f"不支持的影像输入类型：{type(item)}")
+    return paths
 
 
 def log_feedback(
@@ -138,6 +157,13 @@ def _try_sample_clients() -> Optional[Tuple]:
 def create_clients(runner_mode: str) -> Tuple:
     mode = (runner_mode or "auto").lower()
     prefer_sample = os.getenv("USE_SAMPLE_RUNNERS", "0") == "1"
+    mock_forced = os.getenv("MOCK_SPM") == "1" or os.getenv("MOCK_VLM") == "1"
+
+    if mode == "mock" or mock_forced:
+        os.environ.setdefault("MOCK_SPM", "1")
+        os.environ.setdefault("MOCK_VLM", "1")
+        print("[runner] 使用 mock 模式（跳过真实权重加载）")
+        return make_default_spm_client(), make_default_vlm_client()
 
     if mode == "real":
         clients = _try_real_clients()
@@ -171,24 +197,46 @@ spm_client, vlm_client = create_clients(RUNNER_MODE_DEFAULT)
 def diagnose(
     images,
     use_spm_feat: bool,
-    user_note: str,
     feedback_score: int,
     feedback_text: str,
 ):
     if not images:
         raise gr.Error("请先上传至少一张影像。")
 
-    spm_res = spm_client(images)
+    image_paths = _ensure_image_paths(images)
+
+    global spm_client, vlm_client
+
+    try:
+        spm_res = spm_client(image_paths)
+    except Exception as exc:
+        if os.getenv("MOCK_SPM") != "1":
+            print(f"[runner] SPM 失败（{exc}），切换到 mock。")
+            os.environ.setdefault("MOCK_SPM", "1")
+            os.environ.setdefault("MOCK_VLM", "1")
+            spm_client, vlm_client = create_clients("mock")
+            spm_res = spm_client(image_paths)
+        else:
+            raise
     label_map = load_labelmap(LABELMAP_PATH)
     enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
 
     prompt = build_prompt(
         enriched_disease_probs,
         spm_res.thresholds,
-        user_note=user_note,
         label_map=label_map,
     )
-    vlm_res = vlm_client(prompt, images, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
+    try:
+        vlm_res = vlm_client(prompt, image_paths, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
+    except Exception as exc:
+        if os.getenv("MOCK_VLM") != "1":
+            print(f"[runner] VLM 失败（{exc}），切换到 mock。")
+            os.environ.setdefault("MOCK_SPM", "1")
+            os.environ.setdefault("MOCK_VLM", "1")
+            spm_client, vlm_client = create_clients("mock")
+            vlm_res = vlm_client(prompt, image_paths, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
+        else:
+            raise
 
     session_id = uuid.uuid4().hex
     feedback_path = log_feedback(session_id, spm_res, vlm_res, feedback_score, feedback_text)
@@ -204,35 +252,53 @@ def diagnose(
 
 
 def build_demo():
-    with gr.Blocks(title="SLO 医学影像诊断 Demo", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="SLO 医学影像诊断 Demo") as demo:
         gr.Markdown(
             """
             # SPM + VLM 联动 Demo
-            - 上传 1 张或多张影像，前端会调用上游 SPM 推理，将概率/阈值注入 VLM 提示词，生成诊断报告。
-            - 设置 `MOCK_SPM=1` 和 `MOCK_VLM=1` 可以在没有权重的机器上体验 UI。
+            - 上传 1 张或多张 SLO 影像，系统会先跑 SPM，再将概率/阈值注入 VLM 提示词生成报告。
+            - 本地快速体验：设置 `MOCK_SPM=1` 与 `MOCK_VLM=1`，无需下载权重。
             """
         )
 
-        with gr.Row():
+        with gr.Row(equal_height=True):
             with gr.Column():
-                images = gr.Image(label="影像上传", type="filepath", sources=["upload", "clipboard"], multiple=True)
-                use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True)
-                user_note = gr.Textbox(label="补充信息（可选）", lines=3, placeholder="患者症状、病史等")
+                gr.Markdown("### 上传与选项")
+                images = gr.File(
+                    label="影像上传",
+                    file_count="multiple",
+                    file_types=["image"],
+                    type="filepath",
+                )
+                use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True, info="勾选后将上游特征馈入 VLM")
                 feedback_score = gr.Slider(label="医生评分 (1-5)", minimum=1, maximum=5, step=1, value=4)
                 feedback_text = gr.Textbox(label="医生文字反馈（可选）", lines=3)
-                run_btn = gr.Button("生成报告", variant="primary")
+                run_btn = gr.Button("生成报告", variant="primary", size="lg")
 
             with gr.Column():
-                disease_probs = gr.JSON(label="疾病概率")
-                lesion_probs = gr.JSON(label="病灶概率")
+                gr.Markdown("### 模型输出")
+                with gr.Row():
+                    disease_probs = gr.JSON(label="疾病概率", scale=1)
+                    lesion_probs = gr.JSON(label="病灶概率", scale=1)
                 thresholds = gr.JSON(label="阈值信息")
-                report = gr.Textbox(label="诊断报告", lines=12)
-                session_id = gr.Textbox(label="Session ID", interactive=False)
-                feedback_path = gr.Textbox(label="反馈落盘路径", interactive=False)
+                report = gr.Textbox(label="诊断报告", lines=12, placeholder="报告将在此显示（MOCK 模式有示例输出）")
+
+                with gr.Row():
+                    session_id = gr.Textbox(label="Session ID", interactive=False)
+                    feedback_path = gr.Textbox(label="反馈落盘路径", interactive=False)
+
+                gr.Markdown(
+                    """
+                    <div style="background:#f7f9fc;border-radius:8px;padding:10px;">
+                    <b>提示</b>：未配置真实权重时，建议设置 <code>MOCK_SPM=1</code>、<code>MOCK_VLM=1</code> 运行，
+                    可直接查看示例概率与报告；如需真实推理，请切换 runner 模式并准备权重。
+                    </div>
+                    """
+                )
 
         run_btn.click(
             diagnose,
-            inputs=[images, use_spm_feat, user_note, feedback_score, feedback_text],
+            inputs=[images, use_spm_feat, feedback_score, feedback_text],
             outputs=[disease_probs, lesion_probs, thresholds, report, session_id, feedback_path],
         )
 
@@ -257,7 +323,12 @@ def main():
     spm_client, vlm_client = create_clients(args.runner_mode)
 
     demo = build_demo()
-    demo.launch(server_name=args.host, server_port=args.port, share=args.share)
+    demo.launch(
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
+        theme=gr.themes.Soft(),
+    )
 
 
 if __name__ == "__main__":
