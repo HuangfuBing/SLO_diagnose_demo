@@ -5,11 +5,12 @@ Usage (mock mode; no GPU/weights required):
     MOCK_SPM=1 MOCK_VLM=1 python app.py
 
 To integrate real models:
-1) Replace `spm_client = make_default_spm_client()` with
-   `make_default_spm_client(runner=your_spm_runner)`.
-   The runner should accept a list of image paths and return `SpmResult`.
-2) Replace `vlm_client = make_default_vlm_client()` similarly.
-3) Keep the function signatures to stay compatible with the UI.
+    # 优先使用真实 runner，其次尝试 sample runner，最后回退到 mock
+    RUNNER_MODE=auto python app.py --runner-mode auto
+
+Env / args:
+    RUNNER_MODE: auto | real | sample | mock   （默认 auto，自动优先 real）
+    USE_SAMPLE_RUNNERS=1: 保持兼容之前的 sample runner 开关
 """
 
 from __future__ import annotations
@@ -20,17 +21,26 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import gradio as gr
 
-from services import SpmResult, VlmResult, make_default_spm_client, make_default_vlm_client
+from services import (
+    SpmResult,
+    VlmResult,
+    build_spm_runner,
+    build_vlm_runner,
+    make_default_spm_client,
+    make_default_vlm_client,
+)
+from services.label_map import enrich_disease_probs, load_labelmap, resolve_disease_label
 
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
 FEEDBACK_DIR = Path("feedback")
 FEEDBACK_DIR.mkdir(exist_ok=True)
+LABELMAP_PATH = Path(os.getenv("LABELMAP_PATH", "labelmap.json"))
 
 
 # [MOD-c] Prompt builder aligned with the training template used in generate_vlm3.py.
@@ -38,6 +48,7 @@ def build_prompt(
     disease_probs: List[Dict],
     thresholds: Dict,
     user_note: Optional[str] = None,
+    label_map=None,
 ) -> str:
     """
     Construct the human prompt text exactly following the fine-tuning template
@@ -46,9 +57,11 @@ def build_prompt(
     # Convert disease entries to the expected structure for the JSON snippet.
     findings_for_prompt = []
     for item in disease_probs:
+        label = resolve_disease_label(item.get("id"), label_map or {})
+        disease_name = label.get("zh") or item.get("zh") or item.get("key") or item.get("id", "unknown")
         findings_for_prompt.append(
             {
-                "疾病名称": item.get("id", "unknown"),
+                "疾病名称": disease_name,
                 "prob": item.get("prob"),
                 "threshold": item.get("threshold", thresholds.get("default")),
             }
@@ -100,18 +113,60 @@ def log_feedback(
 # --------------------------------------------------------------------------- #
 # Gradio logic
 # --------------------------------------------------------------------------- #
-# [MOD-c-sample] Sample runner wiring for real SPM + VLM (Swift/Qwen3).
-# Enable by setting USE_SAMPLE_RUNNERS=1 when launching the app; otherwise the
-# default clients remain mock-friendly.
-USE_SAMPLE_RUNNERS = os.getenv("USE_SAMPLE_RUNNERS", "0") == "1"
+RUNNER_MODE_DEFAULT = os.getenv("RUNNER_MODE", "auto").lower()
 
-if USE_SAMPLE_RUNNERS:
-    from sample_runners import build_sample_clients
 
-    spm_client, vlm_client = build_sample_clients()
-else:
-    spm_client = make_default_spm_client()
-    vlm_client = make_default_vlm_client()
+def _try_real_clients() -> Optional[Tuple]:
+    try:
+        spm_runner = build_spm_runner()
+        vlm_runner = build_vlm_runner()
+        return make_default_spm_client(runner=spm_runner), make_default_vlm_client(runner=vlm_runner)
+    except Exception as exc:
+        print(f"[runner] Failed to init real runners: {exc}")
+        return None
+
+
+def _try_sample_clients() -> Optional[Tuple]:
+    try:
+        from sample_runners import build_sample_clients
+
+        return build_sample_clients()
+    except Exception as exc:
+        print(f"[runner] Failed to init sample runners: {exc}")
+        return None
+
+
+def create_clients(runner_mode: str) -> Tuple:
+    mode = (runner_mode or "auto").lower()
+    prefer_sample = os.getenv("USE_SAMPLE_RUNNERS", "0") == "1"
+
+    if mode == "real":
+        clients = _try_real_clients()
+        if clients:
+            return clients
+        raise RuntimeError("runner_mode=real 但未能成功初始化真实 runner，请检查权重/依赖。")
+
+    if mode == "sample" or prefer_sample:
+        clients = _try_sample_clients()
+        if clients:
+            return clients
+        if mode == "sample":
+            raise RuntimeError("runner_mode=sample 但初始化失败，请检查 sample runner 依赖。")
+
+    if mode == "auto":
+        for builder in (_try_real_clients, _try_sample_clients):
+            clients = builder()
+            if clients:
+                return clients
+
+    # fallback to mock
+    os.environ.setdefault("MOCK_SPM", "1")
+    os.environ.setdefault("MOCK_VLM", "1")
+    print("[runner] Falling back to mock outputs (MOCK_SPM=1, MOCK_VLM=1)")
+    return make_default_spm_client(), make_default_vlm_client()
+
+
+spm_client, vlm_client = create_clients(RUNNER_MODE_DEFAULT)
 
 
 def diagnose(
@@ -125,14 +180,22 @@ def diagnose(
         raise gr.Error("请先上传至少一张影像。")
 
     spm_res = spm_client(images)
-    prompt = build_prompt(spm_res.disease_probs, spm_res.thresholds, user_note=user_note)
+    label_map = load_labelmap(LABELMAP_PATH)
+    enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
+
+    prompt = build_prompt(
+        enriched_disease_probs,
+        spm_res.thresholds,
+        user_note=user_note,
+        label_map=label_map,
+    )
     vlm_res = vlm_client(prompt, images, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
 
     session_id = uuid.uuid4().hex
     feedback_path = log_feedback(session_id, spm_res, vlm_res, feedback_score, feedback_text)
 
     return (
-        spm_res.disease_probs,
+        enriched_disease_probs,
         spm_res.lesion_probs,
         spm_res.thresholds,
         vlm_res.report,
@@ -182,7 +245,17 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="gradio server host")
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "7860")))
     parser.add_argument("--share", action="store_true", help="enable Gradio share link")
+    parser.add_argument(
+        "--runner-mode",
+        choices=["auto", "real", "sample", "mock"],
+        default=RUNNER_MODE_DEFAULT,
+        help="选择 SPM/VLM runner 来源：real 优先真实权重，sample 试验用，mock 回退固定输出。",
+    )
     args = parser.parse_args()
+
+    # re-init clients in case CLI overrides env default
+    global spm_client, vlm_client
+    spm_client, vlm_client = create_clients(args.runner_mode)
 
     demo = build_demo()
     demo.launch(server_name=args.host, server_port=args.port, share=args.share)
