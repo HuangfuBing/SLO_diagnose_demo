@@ -96,7 +96,9 @@ def _ensure_image_paths(images) -> List[str]:
     """
 
     paths: List[str] = []
-    for item in images or []:
+    # Gradio may hand us a single string or a list; normalize to list for downstream.
+    seq = images if isinstance(images, (list, tuple)) else [images] if images else []
+    for item in seq:
         if isinstance(item, str):
             paths.append(item)
         elif isinstance(item, dict) and item.get("path"):
@@ -155,6 +157,13 @@ def _try_sample_clients() -> Optional[Tuple]:
 def create_clients(runner_mode: str) -> Tuple:
     mode = (runner_mode or "auto").lower()
     prefer_sample = os.getenv("USE_SAMPLE_RUNNERS", "0") == "1"
+    mock_forced = os.getenv("MOCK_SPM") == "1" or os.getenv("MOCK_VLM") == "1"
+
+    if mode == "mock" or mock_forced:
+        os.environ.setdefault("MOCK_SPM", "1")
+        os.environ.setdefault("MOCK_VLM", "1")
+        print("[runner] 使用 mock 模式（跳过真实权重加载）")
+        return make_default_spm_client(), make_default_vlm_client()
 
     if mode == "real":
         clients = _try_real_clients()
@@ -250,11 +259,20 @@ def build_demo():
                     disease_probs = gr.JSON(label="疾病概率", scale=1)
                     lesion_probs = gr.JSON(label="病灶概率", scale=1)
                 thresholds = gr.JSON(label="阈值信息")
-                report = gr.Textbox(label="诊断报告", lines=12)
+                report = gr.Textbox(label="诊断报告", lines=12, placeholder="报告将在此显示（MOCK 模式有示例输出）")
 
                 with gr.Row():
                     session_id = gr.Textbox(label="Session ID", interactive=False)
                     feedback_path = gr.Textbox(label="反馈落盘路径", interactive=False)
+
+                gr.Markdown(
+                    """
+                    <div style="background:#f7f9fc;border-radius:8px;padding:10px;">
+                    <b>提示</b>：未配置真实权重时，建议设置 <code>MOCK_SPM=1</code>、<code>MOCK_VLM=1</code> 运行，
+                    可直接查看示例概率与报告；如需真实推理，请切换 runner 模式并准备权重。
+                    </div>
+                    """
+                )
 
         run_btn.click(
             diagnose,
