@@ -241,14 +241,14 @@ def build_demo():
 
         with gr.Row(equal_height=True):
             with gr.Column():
-                gr.Markdown("### 上传与选项")
                 images = gr.File(
                     label="影像上传",
                     file_count="multiple",
                     file_types=["image"],
                     type="filepath",
                 )
-                use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True, info="勾选后将上游特征馈入 VLM")
+                use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True)
+                user_note = gr.Textbox(label="补充信息（可选）", lines=3, placeholder="患者症状、病史等")
                 feedback_score = gr.Slider(label="医生评分 (1-5)", minimum=1, maximum=5, step=1, value=4)
                 feedback_text = gr.Textbox(label="医生文字反馈（可选）", lines=3)
                 run_btn = gr.Button("生成报告", variant="primary", size="lg")
