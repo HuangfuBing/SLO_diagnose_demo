@@ -43,7 +43,7 @@ class VlmClient:
         and returning VlmResult.
     workdir : str | Path
         Directory for temporary image serialization when Pillow images are passed.
-    """
+    """。
 
     def __init__(
         self,
