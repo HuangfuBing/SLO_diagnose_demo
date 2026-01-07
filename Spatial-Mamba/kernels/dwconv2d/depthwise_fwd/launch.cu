@@ -3,6 +3,8 @@
 #include <THC/THCAtomics.cuh>
 #include <iostream>
 
+#include <c10/core/InferenceMode.h>
+
 #include "cuda.h"
 #include "kernel.cuh"
 #include "para.cuh"
@@ -26,7 +28,7 @@ at::Tensor Dwconv2dLauncherFP32(const at::Tensor input, const at::Tensor weight,
     if (kH==3&&kW==3&&padding_h==1&&padding_w==1) 
     {
         // IntArrayRef kernel_size = {kH, kW};
-        at::NoGradGuard no_grad;
+        c10::InferenceMode guard(true);
         at::Tensor dst = at::cudnn_convolution(input, weight, {1, 1}, {1, 1}, {1, 1}, C, 1, 1, 1);
         return dst;
     }
@@ -60,13 +62,13 @@ at::Tensor Dwconv2dBiasLauncherFP32(const at::Tensor input, const at::Tensor wei
     if (kH==3&&kW==3&&padding_h==1&&padding_w==1&&is_bias==0) 
     {
         // IntArrayRef kernel_size = {kH, kW};
-        at::NoGradGuard no_grad;
+        c10::InferenceMode guard(true);
         at::Tensor dst = at::cudnn_convolution(input, weight, {1, 1}, {1, 1}, {1, 1}, C, 1, 1, 1);
         return dst;
     }
     else if(kH==3&&kW==3)
     {
-        at::NoGradGuard no_grad;
+        c10::InferenceMode guard(true);
         at::Tensor dst = at::conv2d(input, weight, bias, {1, 1}, {padding_h, padding_w}, {1, 1}, C);
         return dst;
     }
