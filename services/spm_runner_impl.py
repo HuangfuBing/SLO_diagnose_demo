@@ -32,6 +32,7 @@ Optional:
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Sequence
 
@@ -40,8 +41,18 @@ from PIL import Image
 from .spm_api import SpmResult
 
 
+def _ensure_spatial_mamba_imports() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    spm_root = repo_root / "Spatial-Mamba" / "classification"
+    if spm_root.exists():
+        spm_root_str = str(spm_root)
+        if spm_root_str not in sys.path:
+            sys.path.insert(0, spm_root_str)
+
+
 def _load_spm_from_2ca():
     """Lazy-load backbone + calib model using env-driven paths."""
+    _ensure_spatial_mamba_imports()
     try:
         import torch
     except ImportError as exc:
@@ -52,22 +63,19 @@ def _load_spm_from_2ca():
     except ImportError as exc:
         raise RuntimeError(
             "main_calib_eval_2ca.py is required but not found. "
-            "Place it in PYTHONPATH to enable the SPM runner."
+            "Place Spatial-Mamba/classification in PYTHONPATH to enable the SPM runner."
         ) from exc
 
     try:
-        from spatialmamba_2ca import LesionQueryHead, LesionToDiseaseMapper
+        from models.spatialmamba_2ca import (
+            LesionCalibModel2CA,
+            LesionQueryHead,
+            LesionToDiseaseMapper,
+        )
     except ImportError as exc:
         raise RuntimeError(
             "spatialmamba_2ca.py is required but not found. "
-            "Place it in PYTHONPATH to enable the SPM runner."
-        ) from exc
-
-    try:
-        from main_calib_train import LesionCalibModel  # expected from your project
-    except ImportError as exc:
-        raise RuntimeError(
-            "main_calib_train.py (providing LesionCalibModel) is required but missing."
+            "Place Spatial-Mamba/classification in PYTHONPATH to enable the SPM runner."
         ) from exc
 
     cfg_path = os.getenv("SPM_BACKBONE_CFG_2CA")
@@ -134,7 +142,7 @@ def _load_spm_from_2ca():
         learn_delta=True,
     )
 
-    calib_model = LesionCalibModel(
+    calib_model = LesionCalibModel2CA(
         backbone=backbone,
         lesion_head=lesion_head,
         mapper=mapper,
