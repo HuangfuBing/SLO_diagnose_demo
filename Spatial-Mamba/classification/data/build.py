@@ -17,6 +17,7 @@ from timm.data import create_transform
 from .cached_image_folder import CachedImageFolder
 from .imagenet22k_dataset import IN22KDATASET
 from .samplers import SubsetRandomSampler
+from .json_multilabel_dataset import JSONMultiLabelDataset
 
 try:
     from torchvision.transforms import InterpolationMode
@@ -45,26 +46,45 @@ def build_loader(config):
     config.defrost()
     dataset_train, config.MODEL.NUM_CLASSES = build_dataset(is_train=True, config=config)
     config.freeze()
+    """
     print(f"rank {dist.get_rank()} successfully build train dataset")
     dataset_val, _ = build_dataset(is_train=False, config=config)
     print(f"rank {dist.get_rank()} successfully build val dataset")
 
     num_tasks = dist.get_world_size()
     global_rank = dist.get_rank()
+    """
+    ################
+    is_dist = dist.is_available() and dist.is_initialized()
+    rank = dist.get_rank() if is_dist else 0
+    print(f"rank {rank} successfully build train dataset")
+
+    dataset_val, _ = build_dataset(is_train=False, config=config)
+    print(f"rank {rank} successfully build val dataset")
+
+    num_tasks = dist.get_world_size() if is_dist else 1
+    global_rank = rank
+    ################
     if config.DATA.ZIP_MODE and config.DATA.CACHE_MODE == 'part':
-        indices = np.arange(dist.get_rank(), len(dataset_train), dist.get_world_size())
+        indices = np.arange(global_rank, len(dataset_train), dist.get_world_size())
         sampler_train = SubsetRandomSampler(indices)
     else:
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
+        if is_dist:
+            sampler_train = torch.utils.data.DistributedSampler(
+                dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+        else:
+            sampler_train = torch.utils.data.RandomSampler(dataset_train)
 
     if config.TEST.SEQUENTIAL:
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
     else:
-        sampler_val = torch.utils.data.distributed.DistributedSampler(
-            dataset_val, shuffle=config.TEST.SHUFFLE
-        )
+        if is_dist:
+            sampler_val = torch.utils.data.distributed.DistributedSampler(
+                dataset_val, shuffle=config.TEST.SHUFFLE
+            )
+        else:
+            sampler_val = torch.utils.data.SequentialSampler(dataset_val)
     if config.MODEL.DDP == 'torch':
         data_loader_train = torch.utils.data.DataLoader(
             dataset_train, sampler=sampler_train,
@@ -140,6 +160,18 @@ def build_dataset(is_train, config):
             ann_file = prefix + "_map_val.txt"
         dataset = IN22KDATASET(config.DATA.DATA_PATH, ann_file, transform)
         nb_classes = 21841
+    # My custom dataset
+    elif config.DATA.DATASET == 'json_multilabel':
+        ann = 'train.json' if is_train else 'val.json'
+        dataset = JSONMultiLabelDataset(
+            root=config.DATA.DATA_PATH,
+            ann_file=ann,
+            transform=transform,
+            # TODO: WHERE THE CLASSES_NUMS DEFINED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            classes=getattr(config.DATA, "CLASSES", None),
+            return_group_id=True if is_train else False
+        )
+        nb_classes = dataset.num_classes
     else:
         raise NotImplementedError("We only support ImageNet Now.")
 
@@ -168,7 +200,7 @@ def build_transform(is_train, config):
 
     t = []
     if resize_im:
-        if config.TEST.CROP:
+        if config.TEST.CROP: # Default is False
             size = int((256 / 224) * config.DATA.IMG_SIZE)
             t.append(
                 transforms.Resize(size, interpolation=_pil_interp(config.DATA.INTERPOLATION)),

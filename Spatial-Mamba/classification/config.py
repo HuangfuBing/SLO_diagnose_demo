@@ -119,6 +119,16 @@ _C.TRAIN.LR_SCHEDULER.WARMUP_PREFIX = True
 # [SimMIM] Gamma / Multi steps value, used in MultiStepLRScheduler
 _C.TRAIN.LR_SCHEDULER.GAMMA = 0.1
 _C.TRAIN.LR_SCHEDULER.MULTISTEPS = []
+_C.TRAIN.TAU_DYN = 0.50
+_C.TRAIN.MARGIN_CO = 0.15
+_C.TRAIN.MARGIN_EX = 1.00
+_C.TRAIN.GRAPH_ALPHA= 1.0
+_C.TRAIN.GRAPH_BETA= 1.0
+_C.TRAIN.GRAPH_GAMMA= 1.0
+_C.TRAIN.GRAPH_COEF = 0.30
+_C.TRAIN.CONSISTENCY_ENABLE = False
+_C.TRAIN.CONSISTENCY_COEF = 0.0
+_C.TRAIN.CONSISTENCY_WARMUP_EPOCHS = 0
 
 # Optimizer
 _C.TRAIN.OPTIMIZER = CN()
@@ -171,7 +181,7 @@ _C.AUG.MIXUP_MODE = 'batch'
 # -----------------------------------------------------------------------------
 _C.TEST = CN()
 # Whether to use center crop when testing
-_C.TEST.CROP = True
+_C.TEST.CROP = False
 # Whether to use SequentialSampler as validation sampler
 _C.TEST.SEQUENTIAL = False
 _C.TEST.SHUFFLE = False
