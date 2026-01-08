@@ -33,6 +33,7 @@ from services import (
     make_default_spm_client,
     make_default_vlm_client,
 )
+from services.label_map import enrich_disease_probs, load_labelmap, resolve_disease_label
 
 # --------------------------------------------------------------------------- #
 # Helpers

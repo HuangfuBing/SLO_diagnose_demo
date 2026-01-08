@@ -28,6 +28,13 @@ def build_vlm_runner():
     """
 
     _state = {"model": None}
+    try:
+        from swift.llm import SwiftModel  # type: ignore
+    except Exception as exc:  # pragma: no cover - user environment dependent
+        raise RuntimeError(
+            "swift.llm.SwiftModel is required for the real VLM runner. "
+            "Please install your VLM stack and set VLM_MODEL_NAME_OR_PATH."
+        ) from exc
 
     def _load_model():
         if _state["model"] is not None:
@@ -36,14 +43,6 @@ def build_vlm_runner():
         model_name = os.getenv("VLM_MODEL_NAME_OR_PATH", "qwen3-vl-72b")
         device = os.getenv("VLM_DEVICE", "cuda:0")
         dtype = os.getenv("VLM_DTYPE", "bfloat16")
-
-        try:
-            from swift.llm import SwiftModel  # type: ignore
-        except Exception as exc:  # pragma: no cover - user environment dependent
-            raise RuntimeError(
-                "swift.llm.SwiftModel is required for the real VLM runner. "
-                "Please install your VLM stack and set VLM_MODEL_NAME_OR_PATH."
-            ) from exc
 
         _state["model"] = SwiftModel.from_pretrained(model_name, device=device, dtype=dtype)
         return _state["model"]
@@ -75,4 +74,3 @@ def build_vlm_runner():
         )
 
     return runner
-
