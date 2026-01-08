@@ -69,12 +69,17 @@ python app.py --runner-mode real
 `services/vlm_runner_impl.py` 以 Swift/Qwen 形式调用模型，常用环境变量：
 
 - `VLM_MODEL_NAME_OR_PATH`：HF/Swift 名称或本地权重路径（默认 `qwen3-vl-72b`）
+- `VLM_VARIANT`：`sft`（纯 SFT）或 `spm`（注入 SPM 特征）
+- `VLM_MODEL_TYPE`：Swift 的 model_type
+- `VLM_TEMPLATE`：Swift 模板名
+- `VLM_CUSTOM_REGISTER`：SPM 版本所需的 custom register 路径
+- `VLM_LORA_ADAPTERS`：LoRA 适配器目录（逗号分隔可传多个）
 - `VLM_DEVICE`：如 `cuda:0`
 - `VLM_DTYPE`：如 `bfloat16` / `float16`
 - `VLM_MAX_NEW_TOKENS`：默认 512
 - `VLM_TEMPERATURE`：默认 0.2
 
-SPM 的特征文件路径（若 `use_spm_feat` 勾选）会通过 `spm_feat_path` 传入 `extra_kwargs`，请确保模型侧支持。
+SPM 的特征文件路径（若 `use_spm_feat` 勾选）会在 `spm` 版本下被拼接到 prompt，并由自定义模板解析注入。
 
 运行示例：
 

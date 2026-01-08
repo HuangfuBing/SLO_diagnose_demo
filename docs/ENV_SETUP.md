@@ -32,6 +32,11 @@ LABELMAP_PATH=/absolute/path/to/labelmap.json
 
 # VLM 相关（可选，但通常会填）
 VLM_MODEL_NAME_OR_PATH=/absolute/path/to/qwen3-vl-32b
+VLM_VARIANT=sft
+VLM_MODEL_TYPE=qwen3_vl
+VLM_TEMPLATE=qwen3_vl
+VLM_CUSTOM_REGISTER=/absolute/path/to/my_register.py
+VLM_LORA_ADAPTERS=/absolute/path/to/lora_ckpt
 VLM_DEVICE=cuda:0
 VLM_DTYPE=bfloat16
 VLM_MAX_NEW_TOKENS=512
@@ -90,6 +95,11 @@ python app.py --runner-mode real
 ### VLM（Qwen3-VL / Swift）
 
 - `VLM_MODEL_NAME_OR_PATH`：HF/Swift 模型名或本地权重目录
+- `VLM_VARIANT`：`sft`（纯 SFT）或 `spm`（注入 SPM 特征）
+- `VLM_MODEL_TYPE`：Swift 的 model_type（如 `qwen3_vl` / `my_qwen3_vl_spm`）
+- `VLM_TEMPLATE`：Swift 模板名（如 `qwen3_vl` / `my_qwen3_vl_spm`）
+- `VLM_CUSTOM_REGISTER`：SPM 版本所需的 custom register 路径
+- `VLM_LORA_ADAPTERS`：LoRA 适配器目录（逗号分隔可传多个）
 - `VLM_DEVICE`：推理设备（如 `cuda:0`）
 - `VLM_DTYPE`：权重 dtype（如 `bfloat16` / `float16`）
 
