@@ -375,7 +375,7 @@ def main():
         server_name=args.host,
         server_port=args.port,
         share=args.share,
-        theme=gr.themes.Soft(),
+        # theme=gr.themes.Soft(),
     )
 
 
