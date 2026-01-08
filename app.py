@@ -21,7 +21,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import gradio as gr
 
@@ -41,6 +41,59 @@ from services.label_map import enrich_disease_probs, load_labelmap, resolve_dise
 FEEDBACK_DIR = Path("feedback")
 FEEDBACK_DIR.mkdir(exist_ok=True)
 LABELMAP_PATH = Path(os.getenv("LABELMAP_PATH", "labelmap.json"))
+THRESHOLDS_PATH = Path(os.getenv("SPM_THRESHOLDS_PATH", "thresholds.json"))
+
+
+def load_thresholds(path: Path) -> Dict[str, float]:
+    if not path or not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return {}
+
+    if isinstance(raw, dict):
+        return {str(k): float(v) for k, v in raw.items() if v is not None}
+
+    if isinstance(raw, list):
+        normalized: Dict[str, float] = {}
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            key = item.get("id") or item.get("key") or item.get("zh") or item.get("name")
+            value = item.get("threshold", item.get("value"))
+            if key is None or value is None:
+                continue
+            normalized[str(key)] = float(value)
+        return normalized
+
+    return {}
+
+
+def resolve_threshold(
+    item: Dict[str, Any],
+    thresholds: Dict[str, float],
+    default: float,
+) -> float:
+    if not thresholds:
+        return default
+
+    candidates = [
+        item.get("id"),
+        item.get("key"),
+        item.get("zh"),
+        item.get("label"),
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        if candidate in thresholds:
+            return float(thresholds[candidate])
+        candidate_str = str(candidate)
+        if candidate_str in thresholds:
+            return float(thresholds[candidate_str])
+    return default
 
 
 # [MOD-c] Prompt builder aligned with the training template used in generate_vlm3.py.
@@ -209,6 +262,22 @@ def diagnose(
     spm_res = spm_client(image_paths)
     label_map = load_labelmap(LABELMAP_PATH)
     enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
+
+    thresholds_cfg = load_thresholds(THRESHOLDS_PATH)
+    default_threshold = float(
+        thresholds_cfg.get("default", spm_res.thresholds.get("default", 0.5))
+        if isinstance(thresholds_cfg, dict)
+        else spm_res.thresholds.get("default", 0.5)
+    )
+    classwise_thresholds: Dict[str, float] = {}
+    for item in enriched_disease_probs:
+        resolved = resolve_threshold(item, thresholds_cfg, default_threshold)
+        item["threshold"] = resolved
+        label_key = item.get("label") or item.get("zh") or item.get("key") or item.get("id")
+        if label_key:
+            classwise_thresholds[str(label_key)] = float(resolved)
+
+    spm_res.thresholds = {"default": default_threshold, "classwise": classwise_thresholds}
 
     prompt = build_prompt(
         enriched_disease_probs,

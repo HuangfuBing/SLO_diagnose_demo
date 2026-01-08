@@ -197,13 +197,6 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
             bundle = _load_spm_from_2ca()
             _state.update(bundle)
 
-    def _save_feat(idx: int, tensor) -> str:
-        import numpy as np
-
-        feat_path = _state["feat_dir"] / f"spm_feat_{idx}.npy"
-        np.save(feat_path, tensor)
-        return str(feat_path)
-
     def runner(paths: Sequence[str]) -> SpmResult:
         import torch
 
@@ -223,7 +216,7 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
             ).unsqueeze(0).to(_state["device"])
 
             with torch.inference_mode():
-                _, lesion_logits, final_logits, feat = _state["model"](
+                _, _, final_logits, lesion_probs = _state["model"](
                     img_tensor, patches, _state["backbone_img_size"]
                 )
                 probs = torch.sigmoid(final_logits).squeeze(0).detach().cpu().numpy().astype(float)
@@ -237,13 +230,12 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
                     }
                 )
 
-            if lesion_logits is not None:
-                lesion_np = torch.sigmoid(lesion_logits).squeeze(0).detach().cpu().numpy().astype(float)
+            if lesion_probs is not None:
+                lesion_np = lesion_probs.squeeze(0).detach().cpu().numpy().astype(float)
                 for lid, lp in zip(_state["selected_lesion_ids"], lesion_np):
                     lesion_probs_out.append({"id": f"lesion_{lid}", "prob": float(lp)})
 
-            if feat is not None:
-                feat_path = _save_feat(idx, feat.detach().cpu().numpy())
+            # NOTE: LesionCalibModel2CA does not return extra feature tensors.
 
         return SpmResult(
             lesion_probs=lesion_probs_out,
