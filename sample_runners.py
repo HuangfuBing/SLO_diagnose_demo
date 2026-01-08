@@ -202,7 +202,7 @@ def _make_sample_spm_runner():
             ).unsqueeze(0).to(_spm_state["device"])
 
             with torch.inference_mode():
-                _, lesion_logits, final_logits, _ = _spm_state["model"](
+                _, _, final_logits, lesion_probs = _spm_state["model"](
                     img_tensor, patches, _spm_state["backbone_img_size"]
                 )
                 probs = torch.sigmoid(final_logits).squeeze(0).detach().cpu().numpy().astype(float)
@@ -216,8 +216,8 @@ def _make_sample_spm_runner():
                     }
                 )
 
-            if lesion_logits is not None:
-                lesion_np = torch.sigmoid(lesion_logits).squeeze(0).detach().cpu().numpy().astype(float)
+            if lesion_probs is not None:
+                lesion_np = lesion_probs.squeeze(0).detach().cpu().numpy().astype(float)
                 for lid, lp in zip(_spm_state["selected_lesion_ids"], lesion_np):
                     lesion_probs_out.append({"id": f"lesion_{lid}", "prob": float(lp)})
 

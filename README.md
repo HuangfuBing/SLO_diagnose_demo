@@ -46,7 +46,9 @@ MOCK_SPM=1 MOCK_VLM=1 python app.py
 - `SPM_DEVICE` (`cuda`，若无 GPU 自动回退 `cpu`)
 - `SPM_USE_EMA` (1)
 - `SPM_THRESHOLD_DEFAULT` (0.5)
+- `SPM_THRESHOLDS_PATH` (`thresholds.json`，逐类阈值 JSON)
 - `SPM_FEAT_DIR` (`.cache_spm_feats`，用于写出 `spm_feat_*.npy`)
+- `LABELMAP_PATH` (`labelmap.json`，疾病 ID → 名称映射)
 
 输入图片会在内部按 `SPM_LESION_IMG_SIZE` 缩放并使用 `build_timm_transform_hr` 做归一化，`spatialmamba_2ca.py` 的 patch 提取参数由 `SPM_PATCH_SIZE` / `SPM_PATCH_STRIDE` 控制。
 

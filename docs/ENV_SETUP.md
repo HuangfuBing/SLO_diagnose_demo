@@ -25,6 +25,10 @@ SPM_DEVICE=cuda
 SPM_USE_EMA=1
 SPM_THRESHOLD_DEFAULT=0.5
 SPM_FEAT_DIR=.cache_spm_feats
+SPM_THRESHOLDS_PATH=/absolute/path/to/thresholds.json
+
+# Label map 相关（可选）
+LABELMAP_PATH=/absolute/path/to/labelmap.json
 
 # VLM 相关（可选，但通常会填）
 VLM_MODEL_NAME_OR_PATH=/absolute/path/to/qwen3-vl-32b
@@ -76,6 +80,12 @@ python app.py --runner-mode real
 - `SPM_CALIB_CKPT_2CA`：校准（StageB）权重
 - `SPM_PRIOR_MATRIX_PATH_2CA`：先验矩阵（.npy / .json）
 - `SPM_SELECTED_LESION_IDS_2CA`：病灶 ID 列表（逗号分隔）
+- `SPM_THRESHOLD_DEFAULT`：默认阈值（无逐类阈值时使用）
+- `SPM_THRESHOLDS_PATH`：逐类阈值 JSON（支持 `{"疾病名": 0.6}` 或 `{"disease_0": 0.6}`）
+
+### Label map
+
+- `LABELMAP_PATH`：疾病 ID → 名称映射 JSON（用于补充疾病名称与阈值匹配）
 
 ### VLM（Qwen3-VL / Swift）
 
@@ -86,4 +96,3 @@ python app.py --runner-mode real
 ## 4. 运行检查
 
 若环境变量无误，`app.py` 会按 **real → sample → mock** 的顺序尝试加载；设置 `RUNNER_MODE=real` 可强制走真实模型路径。
-
