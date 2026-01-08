@@ -51,11 +51,19 @@ def _add_entry(mapping: MutableMapping[Any, Dict[str, Any]], raw_id: Any, payloa
 
 def _normalize_labelmap(raw: Any) -> Dict[Any, Dict[str, Any]]:
     mapping: Dict[Any, Dict[str, Any]] = {}
-    if isinstance(raw, Mapping) and "id" not in raw:
-        for rid, payload in raw.items():
-            if isinstance(payload, Mapping):
-                _add_entry(mapping, rid, payload)
-    elif isinstance(raw, Sequence):
+    if isinstance(raw, Mapping):
+        labels = raw.get("labels")
+        if isinstance(labels, Sequence) and not isinstance(labels, (str, bytes)):
+            for item in labels:
+                if isinstance(item, Mapping):
+                    _add_entry(mapping, item.get("id"), item)
+            return mapping
+        if "id" not in raw:
+            for rid, payload in raw.items():
+                if isinstance(payload, Mapping):
+                    _add_entry(mapping, rid, payload)
+            return mapping
+    if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
         for item in raw:
             if isinstance(item, Mapping):
                 _add_entry(mapping, item.get("id"), item)

@@ -41,7 +41,11 @@ from services.label_map import enrich_disease_probs, load_labelmap, resolve_dise
 FEEDBACK_DIR = Path("feedback")
 FEEDBACK_DIR.mkdir(exist_ok=True)
 LABELMAP_PATH = Path(os.getenv("LABELMAP_PATH", "labelmap.json"))
-THRESHOLDS_PATH = Path(os.getenv("SPM_THRESHOLDS_PATH", "thresholds.json"))
+THRESHOLDS_PATH = Path(
+    os.getenv("SPM_THRESHOLDS_PATH")
+    or os.getenv("SPM_THRESHOLD_PATH")
+    or "thresholds.json"
+)
 
 
 def load_thresholds(path: Path) -> Dict[str, float]:
