@@ -64,6 +64,8 @@ def build_vlm_runner():
             default_reg = repo_root / "my_register.py"
             custom_register = os.getenv("VLM_CUSTOM_REGISTER", str(default_reg))
             _register_custom_module(custom_register)
+            os.environ.setdefault("IMAGE_MAX_TOKEN_NUM", "1024")
+            os.environ.setdefault("MAX_PIXELS", "1048576")
 
         print(f">>> Loading Model: {model_name_or_path}")
         print(f"    Type: {model_type}, Template: {template_type}")
