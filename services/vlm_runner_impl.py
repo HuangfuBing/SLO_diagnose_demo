@@ -53,9 +53,9 @@ def build_vlm_runner():
         if _state["engine"] is not None:
             return _state["engine"]
 
-        model_name_or_path = os.getenv("VLM_MODEL_NAME_OR_PATH", "qwen3-vl-72b")
-        model_type = os.getenv("VLM_MODEL_TYPE", "qwen2-vl-7b-instruct")
-        template_type = os.getenv("VLM_TEMPLATE", "qwen2-vl")
+        model_name_or_path = os.getenv("VLM_MODEL_NAME_OR_PATH", "qwen3-vl-4b")
+        model_type = os.getenv("VLM_MODEL_TYPE", "qwen3-vl-4b")
+        template_type = os.getenv("VLM_TEMPLATE", "qwen3-vl")
         attn_impl = os.getenv("VLM_ATTN_IMPL", "flash_attention_2")
         variant = os.getenv("VLM_VARIANT", "sft").lower()
 
