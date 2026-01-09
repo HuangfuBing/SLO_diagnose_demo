@@ -58,12 +58,16 @@ def build_vlm_runner():
         template_type = os.getenv("VLM_TEMPLATE", "qwen3-vl")
         attn_impl = os.getenv("VLM_ATTN_IMPL", "flash_attention_2")
         variant = os.getenv("VLM_VARIANT", "sft").lower()
+        lora_adapters_env = os.getenv("VLM_LORA_ADAPTERS", "")
+        lora_adapters = [p.strip() for p in lora_adapters_env.split(",") if p.strip()]
 
         if variant == "spm":
             repo_root = Path(__file__).resolve().parents[1]
             default_reg = repo_root / "my_register.py"
             custom_register = os.getenv("VLM_CUSTOM_REGISTER", str(default_reg))
             _register_custom_module(custom_register)
+            os.environ.setdefault("IMAGE_MAX_TOKEN_NUM", "1024")
+            os.environ.setdefault("MAX_PIXELS", "1048576")
 
         print(f">>> Loading Model: {model_name_or_path}")
         print(f"    Type: {model_type}, Template: {template_type}")
@@ -74,6 +78,10 @@ def build_vlm_runner():
         }
         if template_type:
             engine_kwargs["template_type"] = template_type
+
+        if lora_adapters:
+            engine_kwargs["adapters"] = lora_adapters
+            print(f">>> Loading LoRA adapters: {lora_adapters}")
 
         engine = PtEngine(model_name_or_path, **engine_kwargs)
         _state["engine"] = engine
