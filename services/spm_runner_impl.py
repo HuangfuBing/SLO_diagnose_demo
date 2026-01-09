@@ -8,13 +8,16 @@ loading heavy dependencies until a call is made. The runner follows the
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Any
 
 from PIL import Image
+import numpy as np
 import torch
+from torchvision import transforms
 
 from .spm_api import SpmResult
 
@@ -145,8 +148,17 @@ def _load_spm_from_2ca() -> Dict[str, Any]:
 
     thresholds = {"default": float(os.getenv("SPM_THRESHOLD_DEFAULT", "0.5"))}
 
+    feat_transform = transforms.Compose(
+        [
+            transforms.Resize((int(cfg.get("DATA", {}).get("IMG_SIZE", 576)),) * 2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
     return {
         "model": calib_model,
+        "backbone": backbone,
         "device": device,
         "transform": transform,
         "thresholds": thresholds,
@@ -155,6 +167,7 @@ def _load_spm_from_2ca() -> Dict[str, Any]:
         "patch_stride": patch_stride,
         "selected_lesion_ids": selected_lesion_ids,
         "eval_mod": m_eval,  # Hold reference to module for helper functions
+        "feat_transform": feat_transform,
     }
 
 
@@ -165,6 +178,7 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
     """
     _state: Dict[str, object] = {
         "model": None,
+        "backbone": None,
         "device": None,
         "transform": None,
         "backbone_img_size": None,
@@ -174,6 +188,7 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
         "thresholds": None,
         "eval_mod": None,
         "feat_dir": Path(os.getenv("SPM_FEAT_DIR", ".cache_spm_feats")),
+        "feat_transform": None,
     }
     _state["feat_dir"].mkdir(parents=True, exist_ok=True)
 
@@ -188,6 +203,7 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
         # Access components from state
         device = _state["device"]
         model = _state["model"]
+        backbone = _state["backbone"]
         transform = _state["transform"]
         m_eval = _state["eval_mod"]
         patch_size = _state["patch_size"]
@@ -195,10 +211,31 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
         backbone_img_size = _state["backbone_img_size"]
         thresholds = _state["thresholds"]
         selected_lesion_ids = _state["selected_lesion_ids"]
+        feat_transform = _state["feat_transform"]
 
         lesion_probs_out: List[Dict[str, float]] = []
         disease_probs_out: List[Dict[str, float]] = []
         feat_path: str | None = None
+        feat_dim: int | None = None
+
+        def _make_feat_path(img_path: str) -> Path:
+            img_hash = hashlib.sha1(img_path.encode("utf-8")).hexdigest()[:10]
+            name = f"{Path(img_path).stem}_{img_hash}.npy"
+            return _state["feat_dir"] / name
+
+        def _extract_feature(img_path: str) -> Path:
+            if backbone is None:
+                raise RuntimeError("[SPM runner] Backbone not loaded for feature extraction.")
+            feat_file = _make_feat_path(img_path)
+            if feat_file.exists():
+                return feat_file
+            img = Image.open(img_path).convert("RGB")
+            img_tensor = feat_transform(img).unsqueeze(0).to(device)
+            with torch.inference_mode():
+                feats = backbone.forward_features(img_tensor).squeeze(0).detach().cpu().float().numpy()
+            feats = np.asarray(feats, dtype=np.float32).reshape(-1)
+            np.save(feat_file, feats)
+            return feat_file
 
         for idx, img_path in enumerate(paths):
             try:
@@ -206,6 +243,15 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
             except Exception as e:
                 print(f"[SPM Runner] Error opening image {img_path}: {e}")
                 continue
+
+            if feat_path is None:
+                feat_file = _extract_feature(img_path)
+                feat_path = str(feat_file)
+                if feat_dim is None:
+                    try:
+                        feat_dim = int(np.load(feat_file).shape[0])
+                    except Exception:
+                        feat_dim = None
 
             img_tensor = transform(img).unsqueeze(0).to(device)
             
@@ -248,6 +294,7 @@ def build_spm_runner() -> Callable[[Sequence[str]], SpmResult]:
                 "source": "spm_runner_impl",
                 "paths": list(paths),
                 "device": str(device),
+                "feat_dim": feat_dim,
             },
         )
 
