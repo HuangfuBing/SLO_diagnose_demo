@@ -61,7 +61,7 @@ def build_vlm_runner():
 
         if variant == "spm":
             repo_root = Path(__file__).resolve().parents[1]
-            default_reg = repo_root / "my_register .py"
+            default_reg = repo_root / "my_register.py"
             custom_register = os.getenv("VLM_CUSTOM_REGISTER", str(default_reg))
             _register_custom_module(custom_register)
 
