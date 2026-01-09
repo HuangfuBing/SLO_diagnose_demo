@@ -101,7 +101,7 @@ def build_vlm_runner():
 
         query = prompt
         if variant == "spm" and spm_feat_path:
-            query = f"{SPM_SPECIAL_TOKEN}\n{prompt}\n[SPM_FEAT_PATH]{spm_feat_path}"
+            query = f"{SPM_SPECIAL_TOKEN}\n{prompt}[SPM_FEAT_PATH]{spm_feat_path}"
 
         content = _build_content(query, image_paths)
         infer_request = InferRequest(
