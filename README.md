@@ -74,8 +74,9 @@ python app.py --runner-mode real
 - `VLM_TEMPLATE`：Swift 模板名
 - `VLM_CUSTOM_REGISTER`：SPM 版本所需的 custom register 路径
 - `VLM_LORA_ADAPTERS`：LoRA 适配器目录（逗号分隔可传多个）
-- `VLM_DEVICE`：如 `cuda:0`
-- `VLM_DTYPE`：如 `bfloat16` / `float16`
+- `VLM_DEVICE_MAP`：如 `auto`（多卡推理）或 `cuda:0`
+- `VLM_MAX_MEMORY`：JSON 格式的显存限制（如 `{"cuda:0":"20GiB","cuda:1":"20GiB"}`）
+- `VLM_DTYPE` / `VLM_TORCH_DTYPE`：如 `bfloat16` / `float16`
 - `VLM_MAX_NEW_TOKENS`：默认 512
 - `VLM_TEMPERATURE`：默认 0.2
 

@@ -5,6 +5,7 @@ VLM Runner Implementation using Swift PtEngine.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -82,6 +83,24 @@ def build_vlm_runner():
         if lora_adapters:
             engine_kwargs["adapters"] = lora_adapters
             print(f">>> Loading LoRA adapters: {lora_adapters}")
+
+        device_map = os.getenv("VLM_DEVICE_MAP")
+        if device_map:
+            engine_kwargs["device_map"] = device_map
+            print(f">>> Using device_map: {device_map}")
+
+        max_memory_raw = os.getenv("VLM_MAX_MEMORY")
+        if max_memory_raw:
+            try:
+                engine_kwargs["max_memory"] = json.loads(max_memory_raw)
+                print(f">>> Using max_memory: {engine_kwargs['max_memory']}")
+            except json.JSONDecodeError:
+                print(">>> VLM_MAX_MEMORY is not valid JSON, ignoring.")
+
+        torch_dtype = os.getenv("VLM_TORCH_DTYPE") or os.getenv("VLM_DTYPE")
+        if torch_dtype:
+            engine_kwargs["torch_dtype"] = torch_dtype
+            print(f">>> Using torch_dtype: {torch_dtype}")
 
         engine = PtEngine(model_name_or_path, **engine_kwargs)
         _state["engine"] = engine
