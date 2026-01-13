@@ -115,13 +115,10 @@ def build_vlm_runner():
             except json.JSONDecodeError:
                 print(">>> VLM_MAX_MEMORY is not valid JSON, ignoring.")
 
-        torch_dtype_env = os.getenv("VLM_TORCH_DTYPE") or os.getenv("VLM_DTYPE")
-        resolved_dtype = _resolve_torch_dtype(torch_dtype_env) if torch_dtype_env else None
-        if resolved_dtype is not None:
-            engine_kwargs["torch_dtype"] = resolved_dtype
-            print(f">>> Using torch_dtype: {torch_dtype_env}")
-        elif torch_dtype_env:
-            print(f">>> Unsupported torch dtype '{torch_dtype_env}', ignoring.")
+        torch_dtype = os.getenv("VLM_TORCH_DTYPE") or os.getenv("VLM_DTYPE")
+        if torch_dtype:
+            engine_kwargs["torch_dtype"] = torch_dtype
+            print(f">>> Using torch_dtype: {torch_dtype}")
 
         engine = PtEngine(model_name_or_path, **engine_kwargs)
         _state["engine"] = engine
