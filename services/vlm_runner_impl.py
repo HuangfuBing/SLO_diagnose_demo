@@ -117,8 +117,12 @@ def build_vlm_runner():
 
         torch_dtype = os.getenv("VLM_TORCH_DTYPE") or os.getenv("VLM_DTYPE")
         if torch_dtype:
-            engine_kwargs["torch_dtype"] = torch_dtype
-            print(f">>> Using torch_dtype: {torch_dtype}")
+            resolved_dtype = _resolve_torch_dtype(torch_dtype)
+            if resolved_dtype is None:
+                print(f">>> VLM_TORCH_DTYPE={torch_dtype} is not a supported torch dtype; ignoring.")
+            else:
+                engine_kwargs["torch_dtype"] = resolved_dtype
+                print(f">>> Using torch_dtype: {torch_dtype}")
 
         engine = PtEngine(model_name_or_path, **engine_kwargs)
         _state["engine"] = engine
