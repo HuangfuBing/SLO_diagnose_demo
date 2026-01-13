@@ -299,8 +299,6 @@ spm_client, vlm_client = create_clients(RUNNER_MODE_DEFAULT)
 def diagnose(
     images,
     use_spm_feat: bool,
-    feedback_score: int,
-    feedback_text: str,
 ):
     if not images:
         raise gr.Error("请先上传至少一张影像。")
@@ -341,9 +339,7 @@ def diagnose(
         )
 
         session_id = uuid.uuid4().hex
-        feedback_sink = _load_feedback_sink()
-        score_value = int(feedback_score) if feedback_score is not None else None
-        feedback_path = feedback_sink(session_id, spm_res, vlm_res, score_value, feedback_text)
+        session_payload = {"session_id": session_id, "spm": spm_res, "vlm": vlm_res}
 
         return (
             enriched_disease_probs,
@@ -351,12 +347,33 @@ def diagnose(
             spm_res.thresholds,
             vlm_res.report,
             session_id,
-            feedback_path,
+            "",
+            session_payload,
         )
     except gr.Error:
         raise
     except Exception as exc:
         raise gr.Error(f"推理失败：{exc}") from exc
+
+
+def save_feedback(
+    session_payload: Optional[Dict[str, Any]],
+    feedback_score: Optional[int],
+    feedback_text: str,
+):
+    if not session_payload:
+        raise gr.Error("请先生成报告后再保存反馈。")
+
+    spm_res = session_payload.get("spm")
+    vlm_res = session_payload.get("vlm")
+    session_id = session_payload.get("session_id")
+    if not spm_res or not vlm_res or not session_id:
+        raise gr.Error("当前会话缺少推理结果，请重新生成报告。")
+
+    feedback_sink = _load_feedback_sink()
+    score_value = int(feedback_score) if feedback_score is not None else None
+    feedback_path = feedback_sink(session_id, spm_res, vlm_res, score_value, feedback_text)
+    return feedback_path or ""
 
 
 def build_demo():
@@ -387,6 +404,7 @@ def build_demo():
                 )
                 feedback_text = gr.Textbox(label="医生文字反馈（可选）", lines=3)
                 run_btn = gr.Button("生成报告", variant="primary", size="lg")
+                save_feedback_btn = gr.Button("保存反馈", variant="secondary")
 
             with gr.Column():
                 gr.Markdown("### 模型输出")
@@ -409,10 +427,25 @@ def build_demo():
                     """
                 )
 
+        session_state = gr.State()
+
         run_btn.click(
             diagnose,
-            inputs=[images, use_spm_feat, feedback_score, feedback_text],
-            outputs=[disease_probs, lesion_probs, thresholds, report, session_id, feedback_path],
+            inputs=[images, use_spm_feat],
+            outputs=[
+                disease_probs,
+                lesion_probs,
+                thresholds,
+                report,
+                session_id,
+                feedback_path,
+                session_state,
+            ],
+        )
+        save_feedback_btn.click(
+            save_feedback,
+            inputs=[session_state, feedback_score, feedback_text],
+            outputs=[feedback_path],
         )
 
     return demo
