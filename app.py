@@ -21,7 +21,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import gradio as gr
 
@@ -186,6 +186,50 @@ def log_feedback(
     return str(out_path)
 
 
+def _load_feedback_sink() -> Callable[[str, SpmResult, VlmResult, Optional[int], Optional[str]], Optional[str]]:
+    """
+    Load an optional feedback sink hook.
+
+    Set FEEDBACK_SINK="module:function" to override the default jsonl sink.
+    The hook should return a string path/identifier or None.
+    """
+    sink_ref = os.getenv("FEEDBACK_SINK", "").strip()
+    if not sink_ref:
+        return log_feedback
+
+    if ":" not in sink_ref:
+        print("[feedback] Invalid FEEDBACK_SINK format, expected module:function. Falling back to default.")
+        return log_feedback
+
+    module_name, func_name = sink_ref.split(":", 1)
+    try:
+        module = __import__(module_name, fromlist=[func_name])
+        hook = getattr(module, func_name, None)
+        if not callable(hook):
+            raise AttributeError(f"{func_name} is not callable in {module_name}")
+        print(f"[feedback] Using custom sink: {sink_ref}")
+        return hook
+    except Exception as exc:
+        print(f"[feedback] Failed to load custom sink {sink_ref}: {exc}. Falling back to default.")
+        return log_feedback
+
+
+def _validate_image_paths(paths: List[str]) -> None:
+    missing = [p for p in paths if not p or not Path(p).exists()]
+    if missing:
+        raise gr.Error(f"上传影像文件无法读取：{missing}")
+
+
+def _parse_int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 # --------------------------------------------------------------------------- #
 # Gradio logic
 # --------------------------------------------------------------------------- #
@@ -261,46 +305,58 @@ def diagnose(
     if not images:
         raise gr.Error("请先上传至少一张影像。")
 
-    image_paths = _ensure_image_paths(images)
+    try:
+        image_paths = _ensure_image_paths(images)
+        _validate_image_paths(image_paths)
 
-    spm_res = spm_client(image_paths)
-    label_map = load_labelmap(LABELMAP_PATH)
-    enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
+        spm_res = spm_client(image_paths)
+        label_map = load_labelmap(LABELMAP_PATH)
+        enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
 
-    thresholds_cfg = load_thresholds(THRESHOLDS_PATH)
-    default_threshold = float(
-        thresholds_cfg.get("default", spm_res.thresholds.get("default", 0.5))
-        if isinstance(thresholds_cfg, dict)
-        else spm_res.thresholds.get("default", 0.5)
-    )
-    classwise_thresholds: Dict[str, float] = {}
-    for item in enriched_disease_probs:
-        resolved = resolve_threshold(item, thresholds_cfg, default_threshold)
-        item["threshold"] = resolved
-        label_key = item.get("label") or item.get("zh") or item.get("key") or item.get("id")
-        if label_key:
-            classwise_thresholds[str(label_key)] = float(resolved)
+        thresholds_cfg = load_thresholds(THRESHOLDS_PATH)
+        default_threshold = float(
+            thresholds_cfg.get("default", spm_res.thresholds.get("default", 0.5))
+            if isinstance(thresholds_cfg, dict)
+            else spm_res.thresholds.get("default", 0.5)
+        )
+        classwise_thresholds: Dict[str, float] = {}
+        for item in enriched_disease_probs:
+            resolved = resolve_threshold(item, thresholds_cfg, default_threshold)
+            item["threshold"] = resolved
+            label_key = item.get("label") or item.get("zh") or item.get("key") or item.get("id")
+            if label_key:
+                classwise_thresholds[str(label_key)] = float(resolved)
 
-    spm_res.thresholds = {"default": default_threshold, "classwise": classwise_thresholds}
+        spm_res.thresholds = {"default": default_threshold, "classwise": classwise_thresholds}
 
-    prompt = build_prompt(
-        enriched_disease_probs,
-        spm_res.thresholds,
-        label_map=label_map,
-    )
-    vlm_res = vlm_client(prompt, image_paths, spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None)
+        prompt = build_prompt(
+            enriched_disease_probs,
+            spm_res.thresholds,
+            label_map=label_map,
+        )
+        vlm_res = vlm_client(
+            prompt,
+            image_paths,
+            spm_feat_path=spm_res.spm_feat_path if use_spm_feat else None,
+        )
 
-    session_id = uuid.uuid4().hex
-    feedback_path = log_feedback(session_id, spm_res, vlm_res, feedback_score, feedback_text)
+        session_id = uuid.uuid4().hex
+        feedback_sink = _load_feedback_sink()
+        score_value = int(feedback_score) if feedback_score is not None else None
+        feedback_path = feedback_sink(session_id, spm_res, vlm_res, score_value, feedback_text)
 
-    return (
-        enriched_disease_probs,
-        spm_res.lesion_probs,
-        spm_res.thresholds,
-        vlm_res.report,
-        session_id,
-        feedback_path,
-    )
+        return (
+            enriched_disease_probs,
+            spm_res.lesion_probs,
+            spm_res.thresholds,
+            vlm_res.report,
+            session_id,
+            feedback_path,
+        )
+    except gr.Error:
+        raise
+    except Exception as exc:
+        raise gr.Error(f"推理失败：{exc}") from exc
 
 
 def build_demo():
@@ -323,7 +379,12 @@ def build_demo():
                 )
                 use_spm_feat = gr.Checkbox(label="启用 SPM 特征注入", value=True)
                 user_note = gr.Textbox(label="补充信息（可选）", lines=3, placeholder="患者症状、病史等")
-                feedback_score = gr.Slider(label="医生评分 (1-5)", minimum=1, maximum=5, step=1, value=4)
+                feedback_score = gr.Radio(
+                    choices=[0, 1],
+                    value=1,
+                    label="医生评分 (0/1)",
+                    info="0=否定或需改进，1=认可",
+                )
                 feedback_text = gr.Textbox(label="医生文字反馈（可选）", lines=3)
                 run_btn = gr.Button("生成报告", variant="primary", size="lg")
 
@@ -375,10 +436,15 @@ def main():
     spm_client, vlm_client = create_clients(args.runner_mode)
 
     demo = build_demo()
+    demo.queue(
+        default_concurrency_limit=_parse_int_env("GRADIO_QUEUE_CONCURRENCY", 1),
+        max_size=_parse_int_env("GRADIO_QUEUE_MAX_SIZE", 64),
+    )
     demo.launch(
         server_name=args.host,
         server_port=args.port,
         share=args.share,
+        max_file_size=os.getenv("GRADIO_MAX_FILE_SIZE", "20mb"),
         # theme=gr.themes.Soft(),
     )
 

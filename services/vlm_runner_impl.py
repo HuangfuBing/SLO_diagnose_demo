@@ -5,6 +5,7 @@ VLM Runner Implementation using Swift PtEngine.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -49,6 +50,24 @@ def build_vlm_runner():
         spec.loader.exec_module(module)
         print(f"[Info] Loaded custom register: {path_obj}")
 
+    def _resolve_torch_dtype(dtype_name: str):
+        if not dtype_name:
+            return None
+        normalized = dtype_name.strip().lower()
+        try:
+            import torch
+        except Exception:
+            return None
+        mapping = {
+            "bf16": torch.bfloat16,
+            "bfloat16": torch.bfloat16,
+            "fp16": torch.float16,
+            "float16": torch.float16,
+            "fp32": torch.float32,
+            "float32": torch.float32,
+        }
+        return mapping.get(normalized)
+
     def _load_engine() -> PtEngine:
         if _state["engine"] is not None:
             return _state["engine"]
@@ -82,6 +101,27 @@ def build_vlm_runner():
         if lora_adapters:
             engine_kwargs["adapters"] = lora_adapters
             print(f">>> Loading LoRA adapters: {lora_adapters}")
+
+        device_map = os.getenv("VLM_DEVICE_MAP")
+        if device_map:
+            engine_kwargs["device_map"] = device_map
+            print(f">>> Using device_map: {device_map}")
+
+        max_memory_raw = os.getenv("VLM_MAX_MEMORY")
+        if max_memory_raw:
+            try:
+                engine_kwargs["max_memory"] = json.loads(max_memory_raw)
+                print(f">>> Using max_memory: {engine_kwargs['max_memory']}")
+            except json.JSONDecodeError:
+                print(">>> VLM_MAX_MEMORY is not valid JSON, ignoring.")
+
+        torch_dtype_env = os.getenv("VLM_TORCH_DTYPE") or os.getenv("VLM_DTYPE")
+        resolved_dtype = _resolve_torch_dtype(torch_dtype_env) if torch_dtype_env else None
+        if resolved_dtype is not None:
+            engine_kwargs["torch_dtype"] = resolved_dtype
+            print(f">>> Using torch_dtype: {torch_dtype_env}")
+        elif torch_dtype_env:
+            print(f">>> Unsupported torch dtype '{torch_dtype_env}', ignoring.")
 
         engine = PtEngine(model_name_or_path, **engine_kwargs)
         _state["engine"] = engine
