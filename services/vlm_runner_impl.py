@@ -50,6 +50,24 @@ def build_vlm_runner():
         spec.loader.exec_module(module)
         print(f"[Info] Loaded custom register: {path_obj}")
 
+    def _resolve_torch_dtype(dtype_name: str):
+        if not dtype_name:
+            return None
+        normalized = dtype_name.strip().lower()
+        try:
+            import torch
+        except Exception:
+            return None
+        mapping = {
+            "bf16": torch.bfloat16,
+            "bfloat16": torch.bfloat16,
+            "fp16": torch.float16,
+            "float16": torch.float16,
+            "fp32": torch.float32,
+            "float32": torch.float32,
+        }
+        return mapping.get(normalized)
+
     def _load_engine() -> PtEngine:
         if _state["engine"] is not None:
             return _state["engine"]
