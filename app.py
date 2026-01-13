@@ -432,6 +432,8 @@ def build_demo():
                     """
                 )
 
+        session_state = gr.State()
+
         run_btn.click(
             diagnose,
             inputs=[images, use_spm_feat, state],
