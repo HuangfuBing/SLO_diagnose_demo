@@ -296,6 +296,45 @@ def create_clients(runner_mode: str) -> Tuple:
 spm_client, vlm_client = create_clients(RUNNER_MODE_DEFAULT)
 
 
+def _warmup_models(image_path: str) -> None:
+    path = Path(image_path)
+    if not path.exists():
+        print(f"[warmup] Skip: warmup image not found at {image_path}")
+        return
+    try:
+        spm_res = spm_client([str(path)])
+        label_map = load_labelmap(LABELMAP_PATH)
+        enriched_disease_probs = enrich_disease_probs(spm_res.disease_probs, label_map)
+        thresholds_cfg = load_thresholds(THRESHOLDS_PATH)
+        default_threshold = float(
+            thresholds_cfg.get("default", spm_res.thresholds.get("default", 0.5))
+            if isinstance(thresholds_cfg, dict)
+            else spm_res.thresholds.get("default", 0.5)
+        )
+        classwise_thresholds: Dict[str, float] = {}
+        for item in enriched_disease_probs:
+            resolved = resolve_threshold(item, thresholds_cfg, default_threshold)
+            item["threshold"] = resolved
+            label_key = item.get("label") or item.get("zh") or item.get("key") or item.get("id")
+            if label_key:
+                classwise_thresholds[str(label_key)] = float(resolved)
+
+        spm_res.thresholds = {"default": default_threshold, "classwise": classwise_thresholds}
+        prompt = build_prompt(
+            enriched_disease_probs,
+            spm_res.thresholds,
+            label_map=label_map,
+        )
+        vlm_client(
+            prompt,
+            [str(path)],
+            spm_feat_path=spm_res.spm_feat_path,
+        )
+        print(f"[warmup] Completed warmup with {image_path}")
+    except Exception as exc:
+        print(f"[warmup] Warmup failed: {exc}")
+
+
 def diagnose(
     images,
     use_spm_feat: bool,
@@ -464,6 +503,11 @@ def main():
     # re-init clients in case CLI overrides env default
     global spm_client, vlm_client
     spm_client, vlm_client = create_clients(args.runner_mode)
+    warmup_image = os.getenv(
+        "WARMUP_IMAGE",
+        "/data1/demo/SLO_diagnose_demo-main/samples/00000025-20211019@151725-L4-S.jpg",
+    )
+    _warmup_models(warmup_image)
 
     demo = build_demo()
     demo.queue(
