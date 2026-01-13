@@ -157,12 +157,16 @@ def _ensure_image_paths(images) -> List[str]:
     # Gradio may hand us a single string or a list; normalize to list for downstream.
     seq = images if isinstance(images, (list, tuple)) else [images] if images else []
     for item in seq:
-        if isinstance(item, str):
-            paths.append(item)
+        if isinstance(item, (str, os.PathLike)):
+            paths.append(str(item))
         elif isinstance(item, dict) and item.get("path"):
             paths.append(item["path"])
         else:
-            raise gr.Error(f"不支持的影像输入类型：{type(item)}")
+            candidate_path = getattr(item, "path", None)
+            if candidate_path:
+                paths.append(str(candidate_path))
+            else:
+                raise gr.Error(f"不支持的影像输入类型：{type(item)}")
     return paths
 
 
@@ -172,21 +176,31 @@ def log_feedback(
     vlm: VlmResult,
     feedback_score: Optional[int],
     feedback_text: Optional[str],
+    image_paths: Optional[List[str]] = None,
 ):
+    timestamp = dt.datetime.utcnow()
+    image_stem = None
+    if image_paths:
+        image_stem = Path(image_paths[0]).stem
+    filename = f"{timestamp.strftime('%Y%m%d_%H%M%S')}_{image_stem or session_id}.jsonl"
+    out_path = FEEDBACK_DIR / filename
+    if out_path.exists():
+        out_path = FEEDBACK_DIR / f"{timestamp.strftime('%Y%m%d_%H%M%S')}_{session_id}.jsonl"
+
     record = {
         "session_id": session_id,
-        "timestamp": dt.datetime.utcnow().isoformat(),
+        "timestamp": timestamp.isoformat(),
         "spm": spm.__dict__,
         "vlm": vlm.__dict__,
         "feedback": {"score": feedback_score, "text": feedback_text},
+        "images": list(image_paths or []),
     }
-    out_path = FEEDBACK_DIR / f"{session_id}.jsonl"
     with out_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     return str(out_path)
 
 
-def _load_feedback_sink() -> Callable[[str, SpmResult, VlmResult, Optional[int], Optional[str]], Optional[str]]:
+def _load_feedback_sink() -> Callable[..., Optional[str]]:
     """
     Load an optional feedback sink hook.
 
@@ -218,6 +232,44 @@ def _validate_image_paths(paths: List[str]) -> None:
     missing = [p for p in paths if not p or not Path(p).exists()]
     if missing:
         raise gr.Error(f"上传影像文件无法读取：{missing}")
+
+
+def _coerce_spm_result(data: SpmResult | Dict[str, Any]) -> SpmResult:
+    if isinstance(data, SpmResult):
+        return data
+    if isinstance(data, dict):
+        return SpmResult(**data)
+    raise gr.Error(f"无法读取 SPM 结果数据：{type(data)}")
+
+
+def _coerce_vlm_result(data: VlmResult | Dict[str, Any]) -> VlmResult:
+    if isinstance(data, VlmResult):
+        return data
+    if isinstance(data, dict):
+        return VlmResult(**data)
+    raise gr.Error(f"无法读取 VLM 结果数据：{type(data)}")
+
+
+def _call_feedback_sink(
+    sink: Callable[..., Optional[str]],
+    session_id: str,
+    spm: SpmResult,
+    vlm: VlmResult,
+    feedback_score: Optional[int],
+    feedback_text: Optional[str],
+    image_paths: Optional[List[str]],
+) -> Optional[str]:
+    try:
+        return sink(
+            session_id,
+            spm,
+            vlm,
+            feedback_score,
+            feedback_text,
+            image_paths=image_paths,
+        )
+    except TypeError:
+        return sink(session_id, spm, vlm, feedback_score, feedback_text)
 
 
 def _parse_int_env(name: str, default: int) -> int:
@@ -343,8 +395,9 @@ def diagnose(
         next_state = {
             **(state or {}),
             "session_id": session_id,
-            "spm": spm_res,
-            "vlm": vlm_res,
+            "spm": spm_res.__dict__,
+            "vlm": vlm_res.__dict__,
+            "image_paths": image_paths,
         }
 
         return (
@@ -376,7 +429,18 @@ def save_feedback(
 
     feedback_sink = _load_feedback_sink()
     score_value = int(feedback_score) if feedback_score is not None else None
-    feedback_path = feedback_sink(session_id, state["spm"], state["vlm"], score_value, feedback_text)
+    spm_result = _coerce_spm_result(state["spm"])
+    vlm_result = _coerce_vlm_result(state["vlm"])
+    image_paths = state.get("image_paths")
+    feedback_path = _call_feedback_sink(
+        feedback_sink,
+        session_id,
+        spm_result,
+        vlm_result,
+        score_value,
+        feedback_text,
+        image_paths,
+    )
     return feedback_path or ""
 
 
